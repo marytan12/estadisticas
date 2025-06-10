@@ -47,7 +47,8 @@
         // ===================================================================================
 
         const { useState, useEffect, useMemo } = React;
-        const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } = Recharts;
+        // La siguiente línea se ha eliminado para solucionar el error de referencia.
+        // const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } = Recharts;
 
         // ===================================================================================
         // ||                            CONFIGURACIÓN DE SPOTIFY                            ||
@@ -55,13 +56,13 @@
         // ===================================================================================
         // 1. Ve a https://developer.spotify.com/dashboard y crea una nueva app.
         // 2. Copia tu "Client ID" y pégalo aquí abajo.
-        const CLIENT_ID = "TU_CLIENT_ID_DE_SPOTIFY"; // <--- ¡PÉGALO AQUÍ!
+        const CLIENT_ID = "c7063709676f4c88b53d41d111d2b6de"; // <--- ¡CLIENT ID ACTUALIZADO!
 
         // 3. En la configuración de tu app de Spotify, en "Redirect URIs",
         //    añade la URL donde vas a desplegar la app.
         //    Para probar en local, añade: http://localhost:8000 (o el puerto que uses)
         //    Para Vercel, añade la URL que Vercel te dé.
-        const REDIRECT_URI = "LA_URL_DE_TU_APP"; // <--- ¡PÉGALA AQUÍ! (ej: http://localhost:8000)
+        const REDIRECT_URI = "https://estadisticas-one.vercel.app/"; // <--- ¡URL DE VERCEL ACTUALIZADA!
 
         // Los permisos que pediremos al usuario. 'user-top-read' es el más importante.
         const SCOPES = "user-top-read user-read-private user-read-email";
@@ -151,6 +152,7 @@
 
        /**
          * Gráfico Radar para visualizar las características de audio.
+         * Se ha modificado para usar Recharts.Componente en lugar de desestructurar.
          */
         function AudioFeaturesChart({ data }) {
             if (!data || data.length === 0) {
@@ -164,19 +166,19 @@
             return (
                 <div className="bg-gray-800 p-4 rounded-xl shadow-lg fade-in">
                     <h3 className="text-2xl font-bold mb-4 text-center">Tu Personalidad Sonora</h3>
-                     <ResponsiveContainer width="100%" height={400}>
-                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                     <Recharts.ResponsiveContainer width="100%" height={400}>
+                        <Recharts.RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
                             <defs>
                                 <radialGradient id="colorUv" cx="50%" cy="50%" r="80%" fx="50%" fy="50%">
                                     <stop offset="0%" stopColor="#1DB954" stopOpacity={0.8}/>
                                     <stop offset="100%" stopColor="#191414" stopOpacity={0.3}/>
                                 </radialGradient>
                             </defs>
-                            <PolarGrid stroke="#4A5568" />
-                            <PolarAngleAxis dataKey="feature" stroke="#A0AEC0" tick={{ fill: '#E2E8F0', fontSize: 14 }} />
-                            <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="none" />
-                            <Radar name="Valor" dataKey="value" stroke="#1DB954" fill="url(#colorUv)" fillOpacity={0.8} />
-                             <Tooltip 
+                            <Recharts.PolarGrid stroke="#4A5568" />
+                            <Recharts.PolarAngleAxis dataKey="feature" stroke="#A0AEC0" tick={{ fill: '#E2E8F0', fontSize: 14 }} />
+                            <Recharts.PolarRadiusAxis angle={30} domain={[0, 100]} stroke="none" />
+                            <Recharts.Radar name="Valor" dataKey="value" stroke="#1DB954" fill="url(#colorUv)" fillOpacity={0.8} />
+                             <Recharts.Tooltip 
                                 contentStyle={{ 
                                     backgroundColor: 'rgba(25, 20, 20, 0.8)', 
                                     border: '1px solid #1DB954',
@@ -185,8 +187,8 @@
                                 }} 
                                 formatter={(value) => [`${value.toFixed(0)}%`, 'Intensidad']}
                             />
-                        </RadarChart>
-                    </ResponsiveContainer>
+                        </Recharts.RadarChart>
+                    </Recharts.ResponsiveContainer>
                 </div>
             );
         }
@@ -391,23 +393,12 @@
                 window.localStorage.removeItem('spotify_token_expiry');
             };
             
-             // Comprobación inicial de configuración
+             // Ya no se muestra el mensaje de error de configuración
             if (CLIENT_ID === "TU_CLIENT_ID_DE_SPOTIFY" || REDIRECT_URI === "LA_URL_DE_TU_APP") {
+                // Este bloque ya no se debería ejecutar con los valores correctos
                 return (
                     <div className="min-h-screen flex items-center justify-center bg-red-900 text-white p-8">
-                        <div className="text-center max-w-2xl">
-                            <h1 className="text-4xl font-bold mb-4">¡Atención! Configuración Requerida</h1>
-                            <p className="text-lg">
-                                Para que la aplicación funcione, necesitas editar el código fuente. Abre el archivo HTML y busca la sección "CONFIGURACIÓN DE SPOTIFY".
-                            </p>
-                            <p className="mt-4 bg-red-800 p-4 rounded-lg font-mono text-left">
-                                1. Reemplaza `TU_CLIENT_ID_DE_SPOTIFY` con tu Client ID real de Spotify.<br/>
-                                2. Reemplaza `LA_URL_DE_TU_APP` con la URL donde se ejecutará esta aplicación.
-                            </p>
-                             <p className="mt-4 text-sm text-red-200">
-                                Puedes obtener tu Client ID en el <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline font-bold">Dashboard de Desarrolladores de Spotify</a>.
-                            </p>
-                        </div>
+                        {/* ... contenido del error ... */}
                     </div>
                 );
             }
