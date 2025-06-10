@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tu ADN Musical - Spotify</title>
+    
+    <!-- Tailwind CSS para un diseño moderno y responsivo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Google Fonts: Inter para una tipografía limpia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap" rel="stylesheet">
+    
+    <!-- React y Babel para que la app funcione en el navegador -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Recharts para las visualizaciones de datos -->
+    <script src="https://unpkg.com/recharts/umd/Recharts.min.js"></script>
+
+    <style>
+        /* Estilos personalizados y configuración de Tailwind */
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Pequeña animación para la carga de elementos */
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="root"></div>
+
+    <script type="text/babel" data-presets="react">
+        // ===================================================================================
+        // ||                              INICIO DEL CÓDIGO REACT                           ||
+        // ===================================================================================
+
+        const { useState, useEffect, useMemo } = React;
+        const { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Tooltip, ResponsiveContainer } = Recharts;
+
+        // ===================================================================================
+        // ||                            CONFIGURACIÓN DE SPOTIFY                            ||
+        // ||                               ¡¡¡MUY IMPORTANTE!!!                              ||
+        // ===================================================================================
+        // 1. Ve a https://developer.spotify.com/dashboard y crea una nueva app.
+        // 2. Copia tu "Client ID" y pégalo aquí abajo.
+        const CLIENT_ID = "TU_CLIENT_ID_DE_SPOTIFY"; // <--- ¡PÉGALO AQUÍ!
+
+        // 3. En la configuración de tu app de Spotify, en "Redirect URIs",
+        //    añade la URL donde vas a desplegar la app.
+        //    Para probar en local, añade: http://localhost:8000 (o el puerto que uses)
+        //    Para Vercel, añade la URL que Vercel te dé.
+        const REDIRECT_URI = "LA_URL_DE_TU_APP"; // <--- ¡PÉGALA AQUÍ! (ej: http://localhost:8000)
+
+        // Los permisos que pediremos al usuario. 'user-top-read' es el más importante.
+        const SCOPES = "user-top-read user-read-private user-read-email";
+        const AUTH_URL = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&scope=${encodeURIComponent(SCOPES)}`;
+        // ===================================================================================
+
+
+        /**
+         * Componente para la pantalla de inicio de sesión.
+         */
+        function Login() {
+            return (
+                <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4 text-center">
+                    <h1 className="text-5xl md:text-6xl font-black text-white mb-4">Descubre tu</h1>
+                    <h2 className="text-5xl md:text-6xl font-black text-green-400 mb-8">ADN Musical</h2>
+                    <p className="max-w-xl text-gray-300 mb-10">
+                        Inicia sesión con tu cuenta de Spotify para generar una visualización única de tus hábitos de escucha, tus artistas favoritos y las características sonoras de la música que te define.
+                    </p>
+                    <a
+                        href={AUTH_URL}
+                        className="bg-green-500 text-white font-bold py-4 px-8 rounded-full text-lg uppercase tracking-wider hover:bg-green-600 transition-all duration-300 transform hover:scale-105"
+                    >
+                        Iniciar Sesión con Spotify
+                    </a>
+                     <div className="mt-12 text-gray-500 text-sm">
+                        <p>Esta aplicación no almacena ninguno de tus datos.</p>
+                        <p>Solo se solicita acceso de lectura a tu perfil y actividad.</p>
+                    </div>
+                </div>
+            );
+        }
+
+        /**
+         * Componente para mostrar el perfil del usuario y el botón de cerrar sesión.
+         */
+        function ProfileHeader({ profile, onLogout }) {
+             if (!profile) return <div className="h-16"></div>; // Placeholder para evitar saltos de layout
+            return (
+                <header className="flex justify-between items-center p-4 bg-black bg-opacity-30">
+                    <div className="flex items-center space-x-4">
+                        <img 
+                          src={profile.images?.[0]?.url || 'https://placehold.co/60x60/1DB954/FFFFFF?text=S'} 
+                          alt="Foto de perfil" 
+                          className="w-12 h-12 rounded-full border-2 border-green-500"
+                        />
+                        <div>
+                            <p className="text-sm text-gray-400">Perfil</p>
+                            <h2 className="font-bold text-lg">{profile.display_name}</h2>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onLogout}
+                        className="bg-gray-700 text-white font-semibold py-2 px-4 rounded-full text-sm hover:bg-gray-600 transition-colors"
+                    >
+                        Cerrar Sesión
+                    </button>
+                </header>
+            );
+        }
+        
+        /**
+         * Pestañas para cambiar el rango de tiempo del análisis.
+         */
+        function TimeRangeTabs({ activeRange, onRangeChange }) {
+            const ranges = [
+                { id: 'short_term', label: 'Último Mes' },
+                { id: 'medium_term', label: 'Últimos 6 Meses' },
+                { id: 'long_term', label: 'Desde Siempre' },
+            ];
+
+            return (
+                <div className="flex justify-center my-8 bg-gray-800 rounded-full p-1 max-w-sm mx-auto">
+                    {ranges.map(range => (
+                        <button
+                            key={range.id}
+                            onClick={() => onRangeChange(range.id)}
+                            className={`w-full text-center px-4 py-2 rounded-full font-semibold transition-colors duration-300 ${
+                                activeRange === range.id ? 'bg-green-500 text-white' : 'text-gray-300 hover:bg-gray-700'
+                            }`}
+                        >
+                            {range.label}
+                        </button>
+                    ))}
+                </div>
+            );
+        }
+
+       /**
+         * Gráfico Radar para visualizar las características de audio.
+         */
+        function AudioFeaturesChart({ data }) {
+            if (!data || data.length === 0) {
+                 return (
+                    <div className="w-full h-96 flex items-center justify-center bg-gray-800 rounded-lg">
+                        <p className="text-gray-400">Calculando personalidad sonora...</p>
+                    </div>
+                );
+            }
+             
+            return (
+                <div className="bg-gray-800 p-4 rounded-xl shadow-lg fade-in">
+                    <h3 className="text-2xl font-bold mb-4 text-center">Tu Personalidad Sonora</h3>
+                     <ResponsiveContainer width="100%" height={400}>
+                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                            <defs>
+                                <radialGradient id="colorUv" cx="50%" cy="50%" r="80%" fx="50%" fy="50%">
+                                    <stop offset="0%" stopColor="#1DB954" stopOpacity={0.8}/>
+                                    <stop offset="100%" stopColor="#191414" stopOpacity={0.3}/>
+                                </radialGradient>
+                            </defs>
+                            <PolarGrid stroke="#4A5568" />
+                            <PolarAngleAxis dataKey="feature" stroke="#A0AEC0" tick={{ fill: '#E2E8F0', fontSize: 14 }} />
+                            <PolarRadiusAxis angle={30} domain={[0, 100]} stroke="none" />
+                            <Radar name="Valor" dataKey="value" stroke="#1DB954" fill="url(#colorUv)" fillOpacity={0.8} />
+                             <Tooltip 
+                                contentStyle={{ 
+                                    backgroundColor: 'rgba(25, 20, 20, 0.8)', 
+                                    border: '1px solid #1DB954',
+                                    borderRadius: '10px',
+                                    color: '#FFFFFF'
+                                }} 
+                                formatter={(value) => [`${value.toFixed(0)}%`, 'Intensidad']}
+                            />
+                        </RadarChart>
+                    </ResponsiveContainer>
+                </div>
+            );
+        }
+        
+        /**
+         * Muestra una lista de los artistas más escuchados.
+         */
+        function TopArtists({ artists }) {
+            if (!artists) return null;
+            return (
+                <div className="bg-gray-800 p-6 rounded-xl shadow-lg fade-in">
+                    <h3 className="text-2xl font-bold mb-6">Tus Artistas Favoritos</h3>
+                    <ul className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                        {artists.map((artist, index) => (
+                            <li key={artist.id} className="text-center group">
+                                <img 
+                                  src={artist.images?.[0]?.url || 'https://placehold.co/150x150/191414/FFFFFF?text=?'} 
+                                  alt={artist.name} 
+                                  className="w-full aspect-square object-cover rounded-full mb-2 border-4 border-gray-700 group-hover:border-green-500 transition-all duration-300" 
+                                />
+                                <p className="font-bold truncate">{artist.name}</p>
+                                <p className="text-sm text-gray-400">{artist.genres[0] || 'Música'}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            );
+        }
+        
+        /**
+         * Muestra una lista de las canciones más escuchadas.
+         */
+        function TopTracks({ tracks }) {
+            if (!tracks) return null;
+            return (
+                <div className="bg-gray-800 p-6 rounded-xl shadow-lg fade-in">
+                    <h3 className="text-2xl font-bold mb-6">Tus Canciones del Momento</h3>
+                    <ul className="space-y-4">
+                        {tracks.map((track, index) => (
+                            <li key={track.id} className="flex items-center space-x-4 bg-gray-700 p-3 rounded-lg hover:bg-gray-600 transition-colors">
+                                <span className="text-2xl font-bold text-gray-500">{index + 1}</span>
+                                <img 
+                                  src={track.album.images?.[0]?.url || 'https://placehold.co/64x64/191414/FFFFFF?text=?'} 
+                                  alt={track.album.name} 
+                                  className="w-16 h-16 rounded-md object-cover" 
+                                />
+                                <div className="flex-grow overflow-hidden">
+                                    <p className="font-bold truncate">{track.name}</p>
+                                    <p className="text-sm text-gray-400 truncate">{track.artists.map(a => a.name).join(', ')}</p>
+                                </div>
+                                <a href={track.external_urls.spotify} target="_blank" rel="noopener noreferrer" className="text-green-400 hover:text-green-300">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            );
+        }
+
+        /**
+         * Componente principal del Dashboard que obtiene los datos y renderiza las visualizaciones.
+         */
+        function Dashboard({ token, onLogout }) {
+            const [profile, setProfile] = useState(null);
+            const [topArtists, setTopArtists] =useState(null);
+            const [topTracks, setTopTracks] = useState(null);
+            const [audioFeatures, setAudioFeatures] = useState([]);
+            const [timeRange, setTimeRange] = useState('medium_term'); // short_term, medium_term, long_term
+            const [loading, setLoading] = useState(true);
+
+            // Hook para obtener todos los datos de la API de Spotify
+            useEffect(() => {
+                const fetchData = async () => {
+                    setLoading(true);
+                    try {
+                        // Headers para la autorización
+                        const headers = { 'Authorization': `Bearer ${token}` };
+
+                        // 1. Obtener perfil del usuario
+                        const profileRes = await fetch('https://api.spotify.com/v1/me', { headers });
+                        const profileData = await profileRes.json();
+                        setProfile(profileData);
+
+                        // 2. Obtener artistas favoritos
+                        const artistsRes = await fetch(`https://api.spotify.com/v1/me/top/artists?time_range=${timeRange}&limit=10`, { headers });
+                        const artistsData = await artistsRes.json();
+                        setTopArtists(artistsData.items);
+
+                        // 3. Obtener canciones favoritas
+                        const tracksRes = await fetch(`https://api.spotify.com/v1/me/top/tracks?time_range=${timeRange}&limit=10`, { headers });
+                        const tracksData = await tracksRes.json();
+                        setTopTracks(tracksData.items);
+                        
+                        // 4. Obtener Audio Features de las canciones
+                        if (tracksData.items && tracksData.items.length > 0) {
+                            const trackIds = tracksData.items.map(track => track.id).join(',');
+                            const featuresRes = await fetch(`https://api.spotify.com/v1/audio-features?ids=${trackIds}`, { headers });
+                            const featuresData = await featuresRes.json();
+                            
+                            // Calcular el promedio de las características
+                            const avgFeatures = {
+                                acousticness: 0, danceability: 0, energy: 0,
+                                instrumentalness: 0, liveness: 0, speechiness: 0, valence: 0
+                            };
+                            featuresData.audio_features.forEach(f => {
+                                avgFeatures.acousticness += f.acousticness;
+                                avgFeatures.danceability += f.danceability;
+                                avgFeatures.energy += f.energy;
+                                avgFeatures.instrumentalness += f.instrumentalness;
+                                avgFeatures.liveness += f.liveness;
+                                avgFeatures.speechiness += f.speechiness;
+                                avgFeatures.valence += f.valence;
+                            });
+                            
+                            const count = featuresData.audio_features.length;
+                            const formattedFeatures = [
+                                { feature: 'Bailable', value: (avgFeatures.danceability / count) * 100 },
+                                { feature: 'Energía', value: (avgFeatures.energy / count) * 100 },
+                                { feature: 'Positividad', value: (avgFeatures.valence / count) * 100 },
+                                { feature: 'Instrumental', value: (avgFeatures.instrumentalness / count) * 100 },
+                                { feature: 'Acústico', value: (avgFeatures.acousticness / count) * 100 },
+                                { feature: 'Locución', value: (avgFeatures.speechiness / count) * 100 },
+                            ];
+                            setAudioFeatures(formattedFeatures);
+                        }
+
+                    } catch (error) {
+                        console.error("Error al obtener datos de Spotify:", error);
+                        // Si el token expira, cerramos sesión para que el usuario vuelva a autenticarse
+                        onLogout();
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                fetchData();
+            }, [token, timeRange, onLogout]); // Se ejecuta de nuevo si cambia el token o el rango de tiempo
+
+            return (
+                <div className="min-h-screen bg-gray-900">
+                    <ProfileHeader profile={profile} onLogout={onLogout} />
+                    <main className="container mx-auto p-4 md:p-8">
+                        <TimeRangeTabs activeRange={timeRange} onRangeChange={setTimeRange} />
+                        
+                        {loading ? (
+                             <div className="flex justify-center items-center h-64">
+                                <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-green-500"></div>
+                            </div>
+                        ) : (
+                            <div className="space-y-8">
+                                <AudioFeaturesChart data={audioFeatures} />
+                                <TopArtists artists={topArtists} />
+                                <TopTracks tracks={topTracks} />
+                            </div>
+                        )}
+                    </main>
+                </div>
+            );
+        }
+
+        /**
+         * Componente raíz de la aplicación.
+         * Gestiona la autenticación y el estado principal.
+         */
+        function App() {
+            const [token, setToken] = useState(null);
+
+            // Este efecto se ejecuta una sola vez al cargar la app.
+            // Comprueba si hay un token en la URL (después del redirect de Spotify).
+            useEffect(() => {
+                // Primero, intenta coger el token del almacenamiento local
+                let storedToken = window.localStorage.getItem('spotify_token');
+                let tokenExpiry = window.localStorage.getItem('spotify_token_expiry');
+
+                if (storedToken && new Date().getTime() < tokenExpiry) {
+                    setToken(storedToken);
+                    return;
+                }
+
+                // Si no hay token guardado o ha expirado, busca en la URL
+                const hash = window.location.hash;
+                window.location.hash = ""; // Limpiamos la URL para no mostrar el token
+
+                if (hash) {
+                    const params = new URLSearchParams(hash.substring(1));
+                    const accessToken = params.get('access_token');
+                    const expiresIn = params.get('expires_in');
+                    
+                    if (accessToken) {
+                        const expiryTime = new Date().getTime() + expiresIn * 1000;
+                        window.localStorage.setItem('spotify_token', accessToken);
+                        window.localStorage.setItem('spotify_token_expiry', expiryTime);
+                        setToken(accessToken);
+                    }
+                }
+            }, []);
+
+            const logout = () => {
+                setToken(null);
+                window.localStorage.removeItem('spotify_token');
+                window.localStorage.removeItem('spotify_token_expiry');
+            };
+            
+             // Comprobación inicial de configuración
+            if (CLIENT_ID === "TU_CLIENT_ID_DE_SPOTIFY" || REDIRECT_URI === "LA_URL_DE_TU_APP") {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-red-900 text-white p-8">
+                        <div className="text-center max-w-2xl">
+                            <h1 className="text-4xl font-bold mb-4">¡Atención! Configuración Requerida</h1>
+                            <p className="text-lg">
+                                Para que la aplicación funcione, necesitas editar el código fuente. Abre el archivo HTML y busca la sección "CONFIGURACIÓN DE SPOTIFY".
+                            </p>
+                            <p className="mt-4 bg-red-800 p-4 rounded-lg font-mono text-left">
+                                1. Reemplaza `TU_CLIENT_ID_DE_SPOTIFY` con tu Client ID real de Spotify.<br/>
+                                2. Reemplaza `LA_URL_DE_TU_APP` con la URL donde se ejecutará esta aplicación.
+                            </p>
+                             <p className="mt-4 text-sm text-red-200">
+                                Puedes obtener tu Client ID en el <a href="https://developer.spotify.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline font-bold">Dashboard de Desarrolladores de Spotify</a>.
+                            </p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    {token ? <Dashboard token={token} onLogout={logout} /> : <Login />}
+                </div>
+            );
+        }
+
+        // Renderizar la aplicación en el DOM
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+
+        // ===================================================================================
+        // ||                                FIN DEL CÓDIGO REACT                            ||
+        // ===================================================================================
+    </script>
+</body>
+</html>
